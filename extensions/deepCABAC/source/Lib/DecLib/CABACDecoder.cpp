@@ -71,7 +71,7 @@ void CABACDecoder::decodeStepsize( float32_t &stepsize )
   stepsize = uiTf.f;
 }
 
-void CABACDecoder::decodeSideinfo( std::vector<uint32_t>* pDimensions, float32_t& stepsize )
+void CABACDecoder::decodeSideinfo( std::vector<uint32_t>* pDimensions )
 {
   g_NumGtxFlags = 4 + m_BinDecoder.decodeBinsEP(4);
 
@@ -85,13 +85,6 @@ void CABACDecoder::decodeSideinfo( std::vector<uint32_t>* pDimensions, float32_t
       currDim = m_BinDecoder.decodeBinsEP(16);
       pDimensions->push_back(currDim);
   }
-
-  FloatUIntUnion uiTf;
-  uint32_t bins = m_BinDecoder.decodeBinsEP(16);
-  bins += (m_BinDecoder.decodeBinsEP(16)) << 16;
-  uiTf.ui = bins;
-
-  stepsize = uiTf.f;
 }
 
 void CABACDecoder::decodeWeights( int32_t* pWeights, uint32_t layerWidth, uint32_t numWeights )

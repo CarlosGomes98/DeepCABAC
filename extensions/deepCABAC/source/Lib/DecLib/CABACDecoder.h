@@ -56,7 +56,7 @@ public:
     void initCtxMdls            ();
 
     void decodeStepsize         ( float32_t &stepsize );
-    void decodeSideinfo         ( std::vector<uint32_t>* pDimensions, float32_t& stepsize   );
+    void decodeSideinfo         ( std::vector<uint32_t>* pDimensions );
     void decodeWeights          ( int32_t* pWeights, uint32_t layerWidth, uint32_t numWeights );
     void decodeWeightVal        ( int32_t& decodedIntVal );
 

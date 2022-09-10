@@ -52,8 +52,7 @@ class Encoder
 public:
   Encoder();
   ~Encoder();
-  void                  encodeWeightsRD ( py::array_t<float32_t, py::array::c_style> Weights, py::array_t<float32_t, py::array::c_style> Intervals, float32_t stepsize, float32_t lambda );
-  void                  encodeWeightsRD ( py::array_t<float32_t, py::array::c_style> Weights,             float32_t                      Interval,  float32_t stepsize, float32_t lambda );
+  void                  encodeWeights   ( py::array_t<int32_t, py::array::c_style> Weights);
   py::array_t<uint8_t, py::array::c_style>  finish();
 private:
   std::vector<uint8_t>  m_Bytestream;
@@ -71,15 +70,12 @@ Encoder::~Encoder()
   delete m_CABACEncoder;
 }
 
-void Encoder::encodeWeightsRD( py::array_t<float32_t, py::array::c_style> Weights, py::array_t<float32_t, py::array::c_style> Intervals, float32_t stepsize, float32_t lambda )
+void Encoder::encodeWeights( py::array_t<int32_t, py::array::c_style> Weights)
 {
-  m_CABACEncoder->encodeSideinfo( stepsize, Weights );
+  m_CABACEncoder->encodeSideinfo( Weights );
 
   py::buffer_info bi_Weights    = Weights.request();
-  float32_t* pWeights           = (float32_t*) bi_Weights.ptr;
-
-  py::buffer_info bi_Intervals  = Intervals.request();
-  float32_t* pIntervals         = (float32_t*) bi_Intervals.ptr;
+  int32_t* pWeights           = (int32_t*) bi_Weights.ptr;
 
   uint32_t layerWidth = 1;
   uint32_t numWeights = 1;
@@ -89,25 +85,7 @@ void Encoder::encodeWeightsRD( py::array_t<float32_t, py::array::c_style> Weight
     if( idx == 0 ) { continue; }
     layerWidth *= bi_Weights.shape[idx];
   }
-  m_CABACEncoder->encodeWeightsRD( pWeights, pIntervals, stepsize, lambda, layerWidth, numWeights );
-}
-
-void Encoder::encodeWeightsRD( py::array_t<float32_t, py::array::c_style> Weights, float32_t Interval, float32_t stepsize, float32_t lambda )
-{
-  m_CABACEncoder->encodeSideinfo( stepsize, Weights );
-
-  py::buffer_info bi_Weights    = Weights.request();
-  float32_t* pWeights           = (float32_t*) bi_Weights.ptr;
-
-  uint32_t layerWidth = 1;
-  uint32_t numWeights = 1;
-  for( size_t idx = 0; idx < bi_Weights.ndim; idx++ )
-  {
-    numWeights *= bi_Weights.shape[idx];
-    if( idx == 0 ) { continue; }
-    layerWidth *= bi_Weights.shape[idx];
-  }
-  m_CABACEncoder->encodeWeightsRD( pWeights, Interval, stepsize, lambda, layerWidth, numWeights );
+  m_CABACEncoder->encodeWeights( pWeights, layerWidth, numWeights );
 }
 
 py::array_t<uint8_t, py::array::c_style> Encoder::finish()
@@ -131,7 +109,7 @@ public:
   Decoder();
   ~Decoder();
   void                                        getStream     ( py::array_t<uint8_t, py::array::c_style> Bytestream );
-  py::array_t<float32_t, py::array::c_style>  decodeWeights ();
+  py::array_t<int32_t, py::array::c_style>  decodeWeights ();
   uint32_t                                    finish        ();
 
 private:
@@ -155,12 +133,11 @@ void Decoder::getStream( py::array_t<uint8_t, py::array::c_style> Bytestream )
   m_CABACDecoder->startCabacDecoding( pBytestream );
 }
 
-py::array_t<float32_t, py::array::c_style>  Decoder::decodeWeights()
+py::array_t<int32_t, py::array::c_style>  Decoder::decodeWeights()
 {
   std::vector<uint32_t> dimensions;
-  float32_t stepsize;
 
-  m_CABACDecoder->decodeSideinfo( &dimensions, stepsize );
+  m_CABACDecoder->decodeSideinfo( &dimensions );
 
   uint32_t numWeights = 1;
   uint32_t layerWidth = 1;
@@ -172,18 +149,18 @@ py::array_t<float32_t, py::array::c_style>  Decoder::decodeWeights()
   }
 
   auto Weights = py::array_t<int32_t,   py::array::c_style>(numWeights);
-  auto Rec     = py::array_t<float32_t, py::array::c_style>(numWeights);
+  auto Rec     = py::array_t<int32_t, py::array::c_style>(numWeights);
 
   py::buffer_info bi_Weights = Weights.request();
   int32_t* pWeights = (int32_t*)    bi_Weights.ptr;
 
   py::buffer_info bi_Rec     = Rec.request();
-  float32_t* pRec   = (float32_t*)  bi_Rec.ptr;
+  int32_t* pRec   = (int32_t*)  bi_Rec.ptr;
 
   m_CABACDecoder->decodeWeights( pWeights, layerWidth, numWeights );
   for( uint32_t i = 0; i < numWeights; i++ )
   {
-    pRec[i] = pWeights[i] * stepsize;
+    pRec[i] = pWeights[i];
   }
 
   Rec.resize({dimensions});
@@ -203,8 +180,7 @@ PYBIND11_MODULE(deepCABAC, m)
         .def( py::init<>())
         // binding overloaded functions gets a bit messy.
         // there is a nicer syntax when relying on C++14, but this is compatible to C++11 as well:
-        .def( "encodeWeightsRD", (void (Encoder::*) (py::array_t<float32_t, py::array::c_style>, py::array_t<float32_t, py::array::c_style>, float32_t, float32_t)) &Encoder::encodeWeightsRD )
-        .def( "encodeWeightsRD", (void (Encoder::*) (py::array_t<float32_t, py::array::c_style>, float32_t, float32_t, float32_t))                                  &Encoder::encodeWeightsRD )
+        .def( "encodeWeights", (void (Encoder::*) (py::array_t<int32_t, py::array::c_style>))                                                                     &Encoder::encodeWeights )
         .def( "finish",          &Encoder::finish          );
 
     py::class_<Decoder>(m, "Decoder")

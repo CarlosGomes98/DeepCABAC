@@ -247,7 +247,7 @@ float32_t CABACEncoder::estimateAndDecideWeight( int32_t& bestWeightInt, float32
     return bestDist;
 }
 
-void CABACEncoder::encodeSideinfo( float32_t stepsize, py::array_t<float32_t, py::array::c_style> Weights )
+void CABACEncoder::encodeSideinfo( py::array_t<int32_t, py::array::c_style> Weights )
 {
   m_BinEncoder.encodeBinsEP(g_NumGtxFlags - 4, 4);
 
@@ -261,39 +261,16 @@ void CABACEncoder::encodeSideinfo( float32_t stepsize, py::array_t<float32_t, py
   {
     m_BinEncoder.encodeBinsEP(bi_Weights.shape[i], 16);
   }
-
-  FloatUIntUnion fTui;
-
-  fTui.f = stepsize;
-  m_BinEncoder.encodeBinsEP(fTui.ui & 0xFFFFu, 16);
-  m_BinEncoder.encodeBinsEP((fTui.ui >> 16), 16);
 }
 
-void CABACEncoder::encodeWeightsRD( float32_t* pWeights, float32_t* pIntervals, float32_t stepsize, float32_t lambda, uint32_t layerWidth, uint32_t numWeights )
-{
-  int32_t bestIntVal = 0;
-  double distSum     = 0.0;
-  m_CtxModeler.resetNeighborCtx();
-  for (uint32_t posInMat = 0; posInMat < numWeights; posInMat++)
-  {
-    bestIntVal = 0;
-    distSum += estimateAndDecideWeight( bestIntVal, pWeights[ posInMat ], pIntervals[ posInMat ], stepsize, lambda );
-    encodeWeightVal( bestIntVal );
-    m_CtxModeler.updateNeighborCtx( bestIntVal, posInMat, layerWidth );
-  }
-}
 
-void CABACEncoder::encodeWeightsRD( float32_t* pWeights, float32_t Interval, float32_t stepsize, float32_t lambda, uint32_t layerWidth, uint32_t numWeights )
+void CABACEncoder::encodeWeights( int32_t* pWeights, uint32_t layerWidth, uint32_t numWeights)
 {
-  int32_t bestIntVal = 0;
-  double distSum     = 0.0;
   m_CtxModeler.resetNeighborCtx();
 
   for (uint32_t posInMat = 0; posInMat < numWeights; posInMat++)
   {
-    bestIntVal = 0;
-    distSum += estimateAndDecideWeight( bestIntVal, pWeights[ posInMat ], Interval, stepsize, lambda );
-    encodeWeightVal( bestIntVal );
-    m_CtxModeler.updateNeighborCtx( bestIntVal, posInMat, layerWidth );
+    encodeWeightVal( pWeights[ posInMat ] );
+    m_CtxModeler.updateNeighborCtx( pWeights[ posInMat ], posInMat, layerWidth );
   }
 }
